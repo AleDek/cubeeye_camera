@@ -12,7 +12,6 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-#include <cv_bridge/cv_bridge.h>
 
 #include "ProjectDefines.h"
 #include "CameraModule.h"
@@ -356,7 +355,7 @@ sensor_msgs::msg::Image::SharedPtr CameraModule::createImageMessage(meere::senso
     if (type == meere::sensor::FrameType::Depth
         || type == meere::sensor::FrameType::Amplitude
         || type == meere::sensor::FrameType::RegisteredDepth) {
-        _imageMsg = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_16UC1).toImageMsg();
+        _imageMsg = std::make_shared<sensor_msgs::msg::Image>();
 
         switch (type) {
         case meere::sensor::FrameType::Depth:
@@ -380,7 +379,7 @@ sensor_msgs::msg::Image::SharedPtr CameraModule::createImageMessage(meere::senso
     }
     else if (type == meere::sensor::FrameType::RGB
         || type == meere::sensor::FrameType::RegisteredRGB) {
-        _imageMsg = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8).toImageMsg();
+        _imageMsg = std::make_shared<sensor_msgs::msg::Image>();
 
         _imageMsg->header.frame_id = "rgb";
         _imageMsg->width = width;

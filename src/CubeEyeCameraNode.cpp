@@ -12,7 +12,6 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-#include <cv_bridge/cv_bridge.h>
 
 // service
 #include "cubeeye_camera/srv/last_state.hpp"

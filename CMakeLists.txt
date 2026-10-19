@@ -14,7 +14,6 @@ add_compile_options(-Wno-unused-parameter)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
-find_package(cv_bridge REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
@@ -52,7 +51,6 @@ rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typ
 ament_target_dependencies(${PROJECT_NAME}_node
    rclcpp
    rclcpp_action
-   cv_bridge
    std_srvs
    std_msgs
    sensor_msgs
@@ -63,7 +61,20 @@ target_link_libraries(${PROJECT_NAME}_node
   CubeEye
 )
 
-# Use old RPATH. 
+# Find the bundled SDK libs (libCubeEye, OpenCV 3.4, ffmpeg, live555, libusb) at runtime
+set(CUBEEYE_SDK_RPATH
+  ${CMAKE_CURRENT_SOURCE_DIR}/cubeeye2.0/lib
+  ${CMAKE_CURRENT_SOURCE_DIR}/cubeeye2.0/thirdparty/libopencv/lib
+  ${CMAKE_CURRENT_SOURCE_DIR}/cubeeye2.0/thirdparty/libffmpeg/lib
+  ${CMAKE_CURRENT_SOURCE_DIR}/cubeeye2.0/thirdparty/liblive555/lib/Release
+  ${CMAKE_CURRENT_SOURCE_DIR}/cubeeye2.0/thirdparty/libusb/lib
+)
+set_target_properties(${PROJECT_NAME}_node PROPERTIES
+  BUILD_RPATH "${CUBEEYE_SDK_RPATH}"
+  INSTALL_RPATH "${CUBEEYE_SDK_RPATH}"
+)
+
+# Use old RPATH.
 # https://stackoverflow.com/questions/58997230/cmake-project-fails-to-find-shared-library
 target_link_libraries(${PROJECT_NAME}_node "-Wl,--disable-new-dtags") 
 
