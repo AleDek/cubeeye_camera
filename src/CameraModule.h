@@ -44,6 +44,7 @@ private:
 
 private:
     rclcpp::Logger mLogger;
+    rclcpp::Clock::SharedPtr mClock;
 
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mDepthImagePublisher;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mAmplitudeImagePublisher;

@@ -16,13 +16,13 @@ def generate_launch_description():
             package = "tf2_ros",
             executable = "static_transform_publisher",
             name = "base_to_cubeye",
-            arguments=["0.56", "0.0", "0.3", "0.0", "0.95", "0", "base_link", "cubeeye_link"]
+            arguments=["0.56", "0.0", "0.3", "0", "0", "0", "base_link", "cubeeye_link"]
         ),
         Node(
             package = "tf2_ros",
             executable = "static_transform_publisher",
             name = "cubeye_to_pcl",
-            arguments=["0", "0", "0", "0", "0", "3.14", "cubeeye_link", "pcl"]
+            arguments=["0.03920", "0", "-0.04103", "0", "1.003564", "0", "cubeeye_link", "pcl"]
         ),
 
         Node(

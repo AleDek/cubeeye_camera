@@ -212,6 +212,7 @@ void CameraModule::connectTo(rclcpp::Node* node) {
 
     // create publisher
     createPublishers(node);
+    mClock = node->get_clock();
 }
 
 void CameraModule::disconnectFrom(rclcpp::Node* node) {
@@ -223,6 +224,9 @@ void CameraModule::disconnectFrom(rclcpp::Node* node) {
 
 void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
 {
+    // one stamp per frame list, shared by all images/point clouds of the same capture
+    const rclcpp::Time _stamp = mClock ? mClock->now() : rclcpp::Time(0, 0, RCL_ROS_TIME);
+
     for (auto it : (*frames)) {
 #if 0
         RCLCPP_DEBUG(mLogger, "frame : %d, "
@@ -256,9 +260,11 @@ void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
 
                 if (it->frameType() == meere::sensor::FrameType::Depth
                     || it->frameType() == meere::sensor::FrameType::RegisteredDepth) {
+                    _msg->header.stamp = _stamp;
                     mDepthImagePublisher->publish(*_msg);
                 }
                 else if (it->frameType() == meere::sensor::FrameType::Amplitude) {
+                    _msg->header.stamp = _stamp;
                     mAmplitudeImagePublisher->publish(*_msg);
                 }
             }
@@ -281,6 +287,7 @@ void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
                 }
             }
 
+            _msg->header.stamp = _stamp;
             mRGBImagePublisher->publish(*_msg);
         }
         else if (it->frameType() == meere::sensor::FrameType::PointCloud
@@ -306,6 +313,7 @@ void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
                         _pcl_data[_pcl_pos + 2] = (*_sptr_frame_dataZ)[_pos];
                     }
                 }
+                _pcl_msg->header.stamp = _stamp;
                 mPointCloudPublisher->publish(*_pcl_msg);
             }
         }
@@ -332,6 +340,7 @@ void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
                         _pcl_data[_pcl_pos + 2] = (*_sptr_frame_dataZ)[_pos];
                     }
                 }
+                _pcl_msg->header.stamp = _stamp;
                 mPointCloudPublisher->publish(*_pcl_msg);
             }
         }
