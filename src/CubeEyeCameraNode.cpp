@@ -166,6 +166,20 @@ int main(int argc, char **argv)
     node->declare_parameter("autorun_serialnumber", "");
     node->declare_parameter("autorun_frametype", 6);
 
+    // point cloud output options (read for every frame, can be changed at runtime)
+    rcl_interfaces::msg::ParameterDescriptor _decimation_descriptor;
+    _decimation_descriptor.description = "keep one pixel every N along rows and columns (1 = full resolution)";
+    rcl_interfaces::msg::IntegerRange _decimation_range;
+    _decimation_range.from_value = 1;
+    _decimation_range.to_value = 16;
+    _decimation_range.step = 1;
+    _decimation_descriptor.integer_range.push_back(_decimation_range);
+    node->declare_parameter("pointcloud_decimation", 1, _decimation_descriptor);
+
+    rcl_interfaces::msg::ParameterDescriptor _remove_invalid_descriptor;
+    _remove_invalid_descriptor.description = "drop points without valid depth (unorganized cloud, height = 1)";
+    node->declare_parameter("pointcloud_remove_invalid", false, _remove_invalid_descriptor);
+
     bool _autorun = node->get_parameter("autorun_onoff").as_bool();
     RCLCPP_INFO(node->get_logger(), "autorun_onoff %d", _autorun);
 

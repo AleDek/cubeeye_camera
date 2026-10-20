@@ -25,6 +25,8 @@ public:
 
 protected:
     void build(ModelParameter::Descriptor descriptors[], size_t len);
+    bool readCameraValue(const ModelParameter::Descriptor& desc, int& value) const;
+    meere::sensor::sptr_property makeProperty(const ModelParameter::Descriptor& desc, const rclcpp::Parameter& parameter) const;
 
 protected:
     meere::sensor::sptr_camera mCamera;

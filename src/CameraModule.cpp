@@ -13,8 +13,17 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
+#include <algorithm>
+#include <cstring>
+
 #include "ProjectDefines.h"
 #include "CameraModule.h"
+
+template <typename PublisherT>
+static bool hasSubscribers(const PublisherT& publisher)
+{
+    return publisher && (publisher->get_subscription_count() + publisher->get_intra_process_subscription_count()) > 0;
+}
 
 class ReceivedIntensityPCLFrameSink : public meere::sensor::sink
  , public meere::sensor::prepared_listener
@@ -213,6 +222,7 @@ void CameraModule::connectTo(rclcpp::Node* node) {
     // create publisher
     createPublishers(node);
     mClock = node->get_clock();
+    mNode = node;
 }
 
 void CameraModule::disconnectFrom(rclcpp::Node* node) {
@@ -226,6 +236,13 @@ void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
 {
     // one stamp per frame list, shared by all images/point clouds of the same capture
     const rclcpp::Time _stamp = mClock ? mClock->now() : rclcpp::Time(0, 0, RCL_ROS_TIME);
+
+    bool _removeInvalid = false;
+    int32_t _decimation = 1;
+    if (mNode != nullptr) {
+        _removeInvalid = mNode->get_parameter("pointcloud_remove_invalid").as_bool();
+        _decimation = std::max<int32_t>(1, (int32_t)mNode->get_parameter("pointcloud_decimation").as_int());
+    }
 
     for (auto it : (*frames)) {
 #if 0
@@ -245,106 +262,101 @@ void CameraModule::publishFrames(const meere::sensor::sptr_frame_list& frames)
             || it->frameType() == meere::sensor::FrameType::Amplitude
             || it->frameType() == meere::sensor::FrameType::RegisteredDepth) {
             if (it->frameDataType() == meere::sensor::DataType::U16) {
+                auto& _publisher = (it->frameType() == meere::sensor::FrameType::Amplitude) ? mAmplitudeImagePublisher : mDepthImagePublisher;
+                if (!hasSubscribers(_publisher)) {
+                    continue;
+                }
+
                 auto _sptr_basic_frame = meere::sensor::frame_cast_basic16u(it);
-                auto _sptr_frame_data = _sptr_basic_frame->frameData();	// data array
+                const int32_t _width = _sptr_basic_frame->frameWidth();
+                const int32_t _height = _sptr_basic_frame->frameHeight();
 
-                sensor_msgs::msg::Image::SharedPtr _msg = createImageMessage(it->frameType(),
-                                                                _sptr_basic_frame->frameWidth(), _sptr_basic_frame->frameHeight());
-                uint16_t* _data = reinterpret_cast<uint16_t*>(&_msg->data[0]);
-                for (int y = 0 ; y < _sptr_basic_frame->frameHeight(); y++) {
-                    for (int x = 0 ; x < _sptr_basic_frame->frameWidth(); x++) {
-                        int _pos = y * _sptr_basic_frame->frameWidth() + x;
-                        _data[_pos] = (*_sptr_frame_data)[_pos];
-                    }
-                }
+                sensor_msgs::msg::Image::SharedPtr _msg = createImageMessage(it->frameType(), _width, _height);
+                std::memcpy(_msg->data.data(), _sptr_basic_frame->frameData()->data(), sizeof(uint16_t) * _width * _height);
 
-                if (it->frameType() == meere::sensor::FrameType::Depth
-                    || it->frameType() == meere::sensor::FrameType::RegisteredDepth) {
-                    _msg->header.stamp = _stamp;
-                    mDepthImagePublisher->publish(*_msg);
-                }
-                else if (it->frameType() == meere::sensor::FrameType::Amplitude) {
-                    _msg->header.stamp = _stamp;
-                    mAmplitudeImagePublisher->publish(*_msg);
-                }
+                _msg->header.stamp = _stamp;
+                _publisher->publish(*_msg);
             }
         }
         else if (it->frameType() == meere::sensor::FrameType::RGB
             || it->frameType() == meere::sensor::FrameType::RegisteredRGB) {
+            if (!hasSubscribers(mRGBImagePublisher)) {
+                continue;
+            }
 
             auto _sptr_frame = meere::sensor::frame_cast_basic8u(it);
-			auto _ptr_frame_data = _sptr_frame->frameData();
-            
-            sensor_msgs::msg::Image::SharedPtr _msg = createImageMessage(it->frameType(),
-                                                            _sptr_frame->frameWidth(), _sptr_frame->frameHeight());
-            uint8_t* _data = reinterpret_cast<uint8_t*>(&_msg->data[0]);
-            for (int y = 0 ; y < _sptr_frame->frameHeight(); y++) {
-                for (int x = 0 ; x < _sptr_frame->frameWidth(); x++) {
-                    int _pos = y * (_sptr_frame->frameWidth() * 3) + x * 3;
-                    _data[_pos] = (*_ptr_frame_data)[_pos];
-                    _data[_pos + 1] = (*_ptr_frame_data)[_pos + 1];
-                    _data[_pos + 2] = (*_ptr_frame_data)[_pos + 2];
-                }
-            }
+            const int32_t _width = _sptr_frame->frameWidth();
+            const int32_t _height = _sptr_frame->frameHeight();
+
+            sensor_msgs::msg::Image::SharedPtr _msg = createImageMessage(it->frameType(), _width, _height);
+            std::memcpy(_msg->data.data(), _sptr_frame->frameData()->data(), sizeof(uint8_t) * 3 * _width * _height);
 
             _msg->header.stamp = _stamp;
             mRGBImagePublisher->publish(*_msg);
         }
         else if (it->frameType() == meere::sensor::FrameType::PointCloud
             || it->frameType() == meere::sensor::FrameType::RegisteredPointCloud) {
-            if (it->frameDataType() == meere::sensor::DataType::F32) {
+            if (it->frameDataType() == meere::sensor::DataType::F32 && hasSubscribers(mPointCloudPublisher)) {
                 auto _sptr_pointcloud_frame = meere::sensor::frame_cast_pcl32f(it);
-                auto _sptr_frame_dataX = _sptr_pointcloud_frame->frameDataX();
-                auto _sptr_frame_dataY = _sptr_pointcloud_frame->frameDataY();
-                auto _sptr_frame_dataZ = _sptr_pointcloud_frame->frameDataZ();
-
-                sensor_msgs::msg::PointCloud2::SharedPtr _pcl_msg = createPointCloudMessage(meere::sensor::FrameType::PointCloud,
-                                                                _sptr_pointcloud_frame->frameWidth(), _sptr_pointcloud_frame->frameHeight());
-
-                float* _pcl_data = reinterpret_cast<float*>(&_pcl_msg->data[0]);
-                for (int y = 0 ; y < _sptr_pointcloud_frame->frameHeight(); y++) {
-                    for (int x = 0 ; x < _sptr_pointcloud_frame->frameWidth(); x++) {
-                        int _pos = y * _sptr_pointcloud_frame->frameWidth() + x;
-                        int _pcl_pos = _pos * 3;
-
-                        // points
-                        _pcl_data[_pcl_pos] = -(*_sptr_frame_dataY)[_pos];
-                        _pcl_data[_pcl_pos + 1] = -(*_sptr_frame_dataX)[_pos];
-                        _pcl_data[_pcl_pos + 2] = (*_sptr_frame_dataZ)[_pos];
-                    }
-                }
-                _pcl_msg->header.stamp = _stamp;
-                mPointCloudPublisher->publish(*_pcl_msg);
+                publishPointCloud(_sptr_pointcloud_frame->frameWidth(), _sptr_pointcloud_frame->frameHeight(),
+                                    _sptr_pointcloud_frame->frameDataX()->data(),
+                                    _sptr_pointcloud_frame->frameDataY()->data(),
+                                    _sptr_pointcloud_frame->frameDataZ()->data(),
+                                    _stamp, _removeInvalid, _decimation);
             }
         }
         else if (it->frameType() == meere::sensor::FrameType::IntensityPointCloud) {
-            if (it->frameDataType() == meere::sensor::DataType::F32) {
+            if (it->frameDataType() == meere::sensor::DataType::F32 && hasSubscribers(mPointCloudPublisher)) {
                 auto _sptr_intensity_pointcloud_frame = meere::sensor::frame_cast_ipcl32f(it);
-                auto _sptr_frame_dataX = _sptr_intensity_pointcloud_frame->frameDataX();
-                auto _sptr_frame_dataY = _sptr_intensity_pointcloud_frame->frameDataY();
-                auto _sptr_frame_dataZ = _sptr_intensity_pointcloud_frame->frameDataZ();
-                // auto _sptr_frame_dataI = _sptr_intensity_pointcloud_frame->frameDataI();
-
-                sensor_msgs::msg::PointCloud2::SharedPtr _pcl_msg = createPointCloudMessage(meere::sensor::FrameType::PointCloud,
-                                                                _sptr_intensity_pointcloud_frame->frameWidth(), _sptr_intensity_pointcloud_frame->frameHeight());
-
-                float* _pcl_data = reinterpret_cast<float*>(&_pcl_msg->data[0]);
-                for (int y = 0 ; y < _sptr_intensity_pointcloud_frame->frameHeight(); y++) {
-                    for (int x = 0 ; x < _sptr_intensity_pointcloud_frame->frameWidth(); x++) {
-                        int _pos = y * _sptr_intensity_pointcloud_frame->frameWidth() + x;
-                        int _pcl_pos = _pos * 3;
-
-                        // points
-                        _pcl_data[_pcl_pos] = -(*_sptr_frame_dataY)[_pos];
-                        _pcl_data[_pcl_pos + 1] = -(*_sptr_frame_dataX)[_pos];
-                        _pcl_data[_pcl_pos + 2] = (*_sptr_frame_dataZ)[_pos];
-                    }
-                }
-                _pcl_msg->header.stamp = _stamp;
-                mPointCloudPublisher->publish(*_pcl_msg);
+                publishPointCloud(_sptr_intensity_pointcloud_frame->frameWidth(), _sptr_intensity_pointcloud_frame->frameHeight(),
+                                    _sptr_intensity_pointcloud_frame->frameDataX()->data(),
+                                    _sptr_intensity_pointcloud_frame->frameDataY()->data(),
+                                    _sptr_intensity_pointcloud_frame->frameDataZ()->data(),
+                                    _stamp, _removeInvalid, _decimation);
             }
         }
     }    
+}
+
+void CameraModule::publishPointCloud(int32_t width, int32_t height, const float* dataX, const float* dataY, const float* dataZ,
+                                        const rclcpp::Time& stamp, bool removeInvalid, int32_t decimation)
+{
+    const int32_t _out_width = (width + decimation - 1) / decimation;
+    const int32_t _out_height = (height + decimation - 1) / decimation;
+
+    sensor_msgs::msg::PointCloud2::SharedPtr _pcl_msg = createPointCloudMessage(meere::sensor::FrameType::PointCloud, _out_width, _out_height);
+
+    float* _pcl_data = reinterpret_cast<float*>(_pcl_msg->data.data());
+    size_t _count = 0;
+    for (int32_t y = 0; y < height; y += decimation) {
+        const int32_t _row = y * width;
+        for (int32_t x = 0; x < width; x += decimation) {
+            const int32_t _pos = _row + x;
+
+            // no valid depth (0 or NaN) for this pixel
+            if (removeInvalid && !(dataZ[_pos] > 0.0f)) {
+                continue;
+            }
+
+            // points
+            _pcl_data[_count * 3] = -dataY[_pos];
+            _pcl_data[_count * 3 + 1] = -dataX[_pos];
+            _pcl_data[_count * 3 + 2] = dataZ[_pos];
+            _count++;
+        }
+    }
+
+    if (removeInvalid) {
+        // unorganized cloud with valid points only
+        _pcl_msg->height = 1;
+        _pcl_msg->width = (uint32_t)_count;
+        _pcl_msg->row_step = _pcl_msg->point_step * _pcl_msg->width;
+        _pcl_msg->is_dense = true;
+        _pcl_msg->data.resize(_pcl_msg->row_step);
+    }
+
+    _pcl_msg->header.stamp = stamp;
+    mPointCloudPublisher->publish(*_pcl_msg);
 }
 
 void CameraModule::createPublishers(rclcpp::Node* node)

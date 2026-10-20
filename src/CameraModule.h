@@ -41,10 +41,13 @@ private:
 
     sensor_msgs::msg::Image::SharedPtr createImageMessage(meere::sensor::FrameType type, int32_t width, int32_t height);
     sensor_msgs::msg::PointCloud2::SharedPtr createPointCloudMessage(meere::sensor::FrameType type, int32_t width, int32_t height);
+    void publishPointCloud(int32_t width, int32_t height, const float* dataX, const float* dataY, const float* dataZ,
+                            const rclcpp::Time& stamp, bool removeInvalid, int32_t decimation);
 
 private:
     rclcpp::Logger mLogger;
     rclcpp::Clock::SharedPtr mClock;
+    rclcpp::Node* mNode = nullptr;
 
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mDepthImagePublisher;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mAmplitudeImagePublisher;

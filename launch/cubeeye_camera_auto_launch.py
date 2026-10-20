@@ -33,7 +33,13 @@ def generate_launch_description():
             parameters=[
                 {"autorun_onoff" : True},
                 {"autorun_serialnumber" : 'I200DU2608000043'},
-                {"autorun_frametype" : 36}
+                {"autorun_frametype" : 32},            # point cloud only
+                # camera properties (written to the camera at connect; framerate is persistent on the device)
+                {"framerate" : 10},
+                {"outlier_remove_filter" : False},     # ~30% less CPU in the SDK
+                # point cloud output
+                {"pointcloud_remove_invalid" : True},  # drop points without depth (unorganized cloud)
+                {"pointcloud_decimation" : 2}          # 320x240 instead of 640x480
             ]
         )
     ])
