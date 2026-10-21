@@ -35,11 +35,20 @@ def generate_launch_description():
                 {"autorun_serialnumber" : 'I200DU2608000043'},
                 {"autorun_frametype" : 32},            # point cloud only
                 # camera properties (written to the camera at connect; framerate is persistent on the device)
-                {"framerate" : 10},
-                {"outlier_remove_filter" : False},     # ~30% less CPU in the SDK
+                {"framerate" : 5},                     # 5/10/15; max integration time 2000/1600/1000 us
+                {"auto_exposure" : True},
+                # {"integration_time" : 2000},         # only with auto_exposure False, max depends on framerate
+                # SDK filters (values below = camera defaults; thin objects are mostly removed by the first three)
+                {"flying_pixel_remove_filter" : True}, # removes edge pixels at depth jumps
+                {"flying_pixel_remove_threshold" : 33956},                                                        ##QUESTO
+                {"outlier_remove_filter" : True},      # removes small isolated clusters, ~30% of SDK CPU
+                {"noise_removal_threshold" : 204},     # higher keeps more (noisier) low-signal pixels            ##QUESTO
+                {"phase_noise_filter" : False},        # temporal phase noise filter
+                {"scattering_filter" : False},
+                {"median_filter" : False},
                 # point cloud output
                 {"pointcloud_remove_invalid" : True},  # drop points without depth (unorganized cloud)
-                {"pointcloud_decimation" : 2}          # 320x240 instead of 640x480
+                {"pointcloud_decimation" : 1}          # keep 1 for thin objects (2 = 320x240)
             ]
         )
     ])
