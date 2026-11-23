@@ -40,12 +40,12 @@ def generate_launch_description():
                 # {"integration_time" : 2000},         # only with auto_exposure False, max depends on framerate
                 # SDK filters (values below = camera defaults; thin objects are mostly removed by the first three)
                 {"flying_pixel_remove_filter" : True}, # removes edge pixels at depth jumps
-                {"flying_pixel_remove_threshold" : 33956},                                                        ##QUESTO
+                {"flying_pixel_remove_threshold" : 15000},      #33956                                            ##QUESTO
                 {"outlier_remove_filter" : True},      # removes small isolated clusters, ~30% of SDK CPU
-                {"noise_removal_threshold" : 204},     # higher keeps more (noisier) low-signal pixels            ##QUESTO
+                {"noise_removal_threshold" : 150},     # 204 higher keeps more (noisier) low-signal pixels        ##QUESTO
                 {"phase_noise_filter" : False},        # temporal phase noise filter
                 {"scattering_filter" : False},
-                {"median_filter" : False},
+                {"median_filter" : True}, # false
                 # point cloud output
                 {"pointcloud_remove_invalid" : True},  # drop points without depth (unorganized cloud)
                 {"pointcloud_decimation" : 1}          # keep 1 for thin objects (2 = 320x240)
